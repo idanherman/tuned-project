@@ -1,0 +1,76 @@
+# Tuned CR: baremetal-cisco-enic
+# Target: Cisco UCS B200 M5 bare-metal workers with enic driver (VIC 1340 / VIC 1457)
+# Priority: 10 (highest — enic has the most critical workaround: tcp_rmem regression)
+# Match: nodes labeled node.kubernetes.io/nic-driver=enic
+#
+# Key fixes applied by this profile:
+#   - tcp_rmem initial=3MB: works around RHEL 9.4 TCP window auto-tuning regression (RHEL-97545)
+#   - netdev_max_backlog=5000: fixes softnet_drops at default backlog=1000
+#   - netdev_budget_usecs=4000: ensures NAPI budget=600 is fully usable at 10GbE
+#   - THP=never: standard for worker nodes running containerized workloads
+#
+# What this profile does NOT touch (managed at UCS adapter policy):
+#   - Ring buffers (already 4096 at firmware level)
+#   - Channels/queues (8 RX + 8 TX at adapter policy)
+#   - Interrupt coalescing (125us at adapter policy)
+#   - ntuple/aRFS (intentionally OFF — RH confirmed no benefit on enic, adds instability)
+---
+apiVersion: tuned.openshift.io/v1
+kind: Tuned
+metadata:
+  name: baremetal-cisco-enic
+  namespace: openshift-cluster-node-tuning-operator
+spec:
+  profile:
+    - name: baremetal-cisco-enic
+      data: |
+        [main]
+        summary=Cisco UCS B200 M5 workers (enic): tcp_rmem 3MB fix, backlog 5000, THP never
+        include=openshift-node
+
+        [vm]
+        # Disable THP on workers — compaction causes latency spikes for containerized workloads
+        transparent_hugepages=never
+
+        [sysctl]
+        kernel.printk = 4 4 1 7
+
+        # NAPI polling budget: how many packets/how long the kernel drains per cycle
+        # budget=600 packets, budget_usecs=4000us — ensures budget completes at 10GbE speeds
+        net.core.netdev_budget = 600
+        net.core.netdev_budget_usecs = 4000
+
+        # Per-CPU backlog queue: absorbs bursts between NAPI poll and TCP processing
+        # Default 1000 causes millions of softnet_drops on 10GbE BM. 5000 eliminates this.
+        net.core.netdev_max_backlog = 5000
+
+        # Socket buffer ceilings: 16MB needed for iSCSI and to support tcp_rmem max
+        net.core.wmem_max = 16777216
+        net.core.rmem_max = 16777216
+
+        # CRITICAL: tcp_rmem initial MUST be 3MB (3145728)
+        # RHEL 9.4 regression (RHEL-97545 / KCS 7127975) breaks TCP window auto-tuning on enic.
+        # Without this fix: connections stuck at 128KB window → 12+ hour image pulls.
+        # Max reduced to 6MB (from 16MB) per RH workaround — limits memory since initial is 3MB.
+        net.ipv4.tcp_rmem = 4096 3145728 6291456
+
+        # tcp_wmem: no regression on send side. Keep current values for iSCSI write throughput.
+        net.ipv4.tcp_wmem = 4096 87380 16777216
+
+        [net]
+        # Driver anchor — identifies which NIC this [net] section applies to.
+        # No ring/channel/coalesce settings here (UCS adapter policy manages those).
+        type=net
+        devices_udev_regex=^ID_NET_DRIVER=enic
+  recommend:
+    - match:
+        # Custom label — must be applied manually to each enic node:
+        #   oc label node <name> node.kubernetes.io/nic-driver=enic
+        # If this label is missing, the node falls through to vm-worker (priority 20) — WRONG profile.
+        # Run scripts/validate-tuning.sh to verify all BM nodes are labeled.
+        - label: node.kubernetes.io/nic-driver
+          value: enic
+      # Priority 10 = highest precedence. Evaluated before all other custom profiles.
+      # Wins over vm-worker (20) if a BM node also has the worker role label.
+      priority: 10
+      profile: baremetal-cisco-enic

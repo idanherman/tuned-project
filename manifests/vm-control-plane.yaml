@@ -1,0 +1,58 @@
+# Tuned CR: vm-control-plane
+# Target: VMware vSphere control-plane nodes (masters)
+# Priority: 15
+# Match: node-role.kubernetes.io/control-plane AND tuning.custom/ring-resize=true
+#
+# The gating label (tuning.custom/ring-resize=true) enables sequential rollout:
+# apply one master at a time to avoid simultaneous NIC resets affecting etcd quorum.
+# After all masters are verified stable, remove the gating label requirement.
+#
+# Key settings:
+#   - Ring buffers 4096: fixes ring_full drops (from default 1024/512)
+#   - THP: intentionally NOT disabled (RH confirmed API server + CRI-O benefit from THP)
+#
+# WARNING: ring resize causes ~1s NIC reset. Apply sequentially, verify etcd between nodes.
+# See docs/labels-and-priorities/ for the full rollout procedure.
+---
+apiVersion: tuned.openshift.io/v1
+kind: Tuned
+metadata:
+  name: vm-control-plane
+  namespace: openshift-cluster-node-tuning-operator
+spec:
+  profile:
+    - name: vm-control-plane
+      data: |
+        [main]
+        summary=VMware control-plane: ring 4096, THP=always (kept for API server benefit)
+        include=openshift-node
+
+        [sysctl]
+        kernel.printk = 4 4 1 7
+
+        [net]
+        type=net
+        devices_udev_regex=^ID_NET_DRIVER=vmxnet3
+        # Fix ring buffers from default 1024/512 to max 4096
+        # This eliminates hundreds of millions of ring_full drops
+        # Causes brief ~1s NIC reset — hence the sequential rollout via label-gating
+        ring=rx 4096 tx 4096
+
+        # THP: intentionally NOT setting transparent_hugepages=never here.
+        # Red Hat confirmed (Case 04495863): API server, controller-manager, CRI-O benefit.
+        # Only disable if etcd shows fsync latency warnings (99th pct > 10ms).
+  recommend:
+    - match:
+        # GATING LABEL for sequential rollout (AND logic via nested match).
+        # NTO match items at the same level are OR. For AND, nest them.
+        # The outer label is checked first; if it matches, the inner match is evaluated.
+        # Apply one master at a time:
+        #   oc label node <master-0> tuning.custom/ring-resize=true
+        # After all masters verified: remove the gating and simplify to just control-plane label.
+        - label: tuning.custom/ring-resize
+          value: "true"
+          match:
+            - label: node-role.kubernetes.io/control-plane
+      # Priority 15 — overrides built-in openshift-control-plane (priority 30)
+      priority: 15
+      profile: vm-control-plane

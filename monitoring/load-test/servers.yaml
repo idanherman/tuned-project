@@ -1,0 +1,79 @@
+# iperf3 server — receives network traffic from generators
+apiVersion: v1
+kind: Pod
+metadata:
+  name: iperf3-server
+  namespace: load-test
+  labels:
+    app: iperf3-server
+spec:
+  containers:
+  - name: iperf3
+    image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+    command: ['/bin/sh', '-c']
+    args:
+    - |
+      microdnf install -y iperf3 2>/dev/null >&2
+      echo "iperf3 server ready on :5201"
+      iperf3 -s -p 5201
+    ports:
+    - containerPort: 5201
+    resources:
+      requests:
+        cpu: 500m
+        memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: iperf3-server
+  namespace: load-test
+spec:
+  selector:
+    app: iperf3-server
+  ports:
+  - port: 5201
+    targetPort: 5201
+---
+# HTTP server — target for connection/request flood through ingress
+apiVersion: v1
+kind: Pod
+metadata:
+  name: http-server
+  namespace: load-test
+  labels:
+    app: http-server
+spec:
+  containers:
+  - name: nginx
+    image: registry.access.redhat.com/ubi9/nginx-122:latest
+    ports:
+    - containerPort: 8080
+    resources:
+      requests:
+        cpu: 500m
+        memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: http-server
+  namespace: load-test
+spec:
+  selector:
+    app: http-server
+  ports:
+  - port: 8080
+    targetPort: 8080
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: http-server
+  namespace: load-test
+spec:
+  to:
+    kind: Service
+    name: http-server
+  port:
+    targetPort: 8080

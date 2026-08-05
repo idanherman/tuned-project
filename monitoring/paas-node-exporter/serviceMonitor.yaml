@@ -1,0 +1,21 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: paas-node-exporter
+  namespace: paas-monitoring
+  labels:
+    paas-node-exporter: "true"
+    app: paas-node-exporter
+spec:
+  selector:
+    matchLabels:
+      paas-node-exporter: "true"
+  namespaceSelector:
+    matchNames:
+      - paas-monitoring
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+      scheme: http
+      scrapeTimeout: 20s

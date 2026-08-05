@@ -1,0 +1,1667 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "description": "NIC Health & Tuning Validation \u2014 custom exporter nic_* + platform softnet/TCP/network metrics",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 100,
+      "title": "NIC Hardware Drops (ethtool -S) \u2014 buffer | rx_drop | tx_drop \u00d7 enic | vmxnet3",
+      "type": "row"
+    },
+    {
+      "title": "enic RX buffer (rx_no_bufs) \u2014 cumulative",
+      "description": "ethtool -S rx_no_bufs \u2014 RX buffer exhaustion",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 1
+      },
+      "id": 40,
+      "datasource": {
+        "uid": "$Env",
+        "type": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "sum(nic_enic_rx_buffer{node_name=~\"$node\\\\n\"}) or vector(0)",
+          "legendFormat": ""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1000
+              },
+              {
+                "color": "red",
+                "value": 100000
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "vmxnet3 RX buffer (pkts rx OOB) \u2014 cumulative",
+      "description": "ethtool -S 'pkts rx OOB' \u2014 RX out of buffer",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 1
+      },
+      "id": 41,
+      "datasource": {
+        "uid": "$Env",
+        "type": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "sum(nic_vmxnet3_rx_buffer{node_name=~\"$node\\\\n\"}) or vector(0)",
+          "legendFormat": ""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1000
+              },
+              {
+                "color": "red",
+                "value": 1000000
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "enic RX drop \u2014 cumulative",
+      "description": "ethtool -S rx_drop \u2014 regular RX drops (not ip -s link)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 1
+      },
+      "id": 42,
+      "datasource": {
+        "uid": "$Env",
+        "type": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "sum(nic_enic_rx_drop{node_name=~\"$node\\\\n\"}) or vector(0)",
+          "legendFormat": ""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1000
+              },
+              {
+                "color": "red",
+                "value": 100000
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "vmxnet3 RX drop \u2014 cumulative",
+      "description": "ethtool -S 'drv dropped rx total'",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 1
+      },
+      "id": 43,
+      "datasource": {
+        "uid": "$Env",
+        "type": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "sum(nic_vmxnet3_rx_drop{node_name=~\"$node\\\\n\"}) or vector(0)",
+          "legendFormat": ""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1000
+              },
+              {
+                "color": "red",
+                "value": 1000000
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "enic TX drop \u2014 cumulative",
+      "description": "ethtool -S tx_drop (enic has no tx_no_bufs)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 1
+      },
+      "id": 44,
+      "datasource": {
+        "uid": "$Env",
+        "type": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "sum(nic_enic_tx_drop{node_name=~\"$node\\\\n\"}) or vector(0)",
+          "legendFormat": ""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1000
+              },
+              {
+                "color": "red",
+                "value": 100000
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "vmxnet3 TX drop (ring full) \u2014 cumulative",
+      "description": "ethtool -S 'ring full' \u2014 TX ring overflow (main VMware signal)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      },
+      "id": 45,
+      "datasource": {
+        "uid": "$Env",
+        "type": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "sum(nic_vmxnet3_tx_drop{node_name=~\"$node\\\\n\"}) or vector(0)",
+          "legendFormat": ""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1000
+              },
+              {
+                "color": "red",
+                "value": 1000000
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "enic RX buffer (rx_no_bufs) \u2014 rate",
+      "description": "ethtool -S rx_no_bufs \u2014 RX buffer exhaustion",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 4,
+        "x": 0,
+        "y": 5
+      },
+      "id": 50,
+      "datasource": {
+        "uid": "$Env",
+        "type": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "sum by (node_name) (rate(nic_enic_rx_buffer{node_name=~\"$node\\\\n\"}[5m]))",
+          "legendFormat": "{{node_name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "pps",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      }
+    },
+    {
+      "title": "vmxnet3 RX buffer (pkts rx OOB) \u2014 rate",
+      "description": "ethtool -S 'pkts rx OOB' \u2014 RX out of buffer",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 4,
+        "x": 4,
+        "y": 5
+      },
+      "id": 51,
+      "datasource": {
+        "uid": "$Env",
+        "type": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "sum by (node_name) (rate(nic_vmxnet3_rx_buffer{node_name=~\"$node\\\\n\"}[5m]))",
+          "legendFormat": "{{node_name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "pps",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      }
+    },
+    {
+      "title": "enic RX drop \u2014 rate",
+      "description": "ethtool -S rx_drop \u2014 regular RX drops (not ip -s link)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 4,
+        "x": 8,
+        "y": 5
+      },
+      "id": 52,
+      "datasource": {
+        "uid": "$Env",
+        "type": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "sum by (node_name) (rate(nic_enic_rx_drop{node_name=~\"$node\\\\n\"}[5m]))",
+          "legendFormat": "{{node_name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "pps",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      }
+    },
+    {
+      "title": "vmxnet3 RX drop \u2014 rate",
+      "description": "ethtool -S 'drv dropped rx total'",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 4,
+        "x": 12,
+        "y": 5
+      },
+      "id": 53,
+      "datasource": {
+        "uid": "$Env",
+        "type": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "sum by (node_name) (rate(nic_vmxnet3_rx_drop{node_name=~\"$node\\\\n\"}[5m]))",
+          "legendFormat": "{{node_name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "pps",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      }
+    },
+    {
+      "title": "enic TX drop \u2014 rate",
+      "description": "ethtool -S tx_drop (enic has no tx_no_bufs)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 4,
+        "x": 16,
+        "y": 5
+      },
+      "id": 54,
+      "datasource": {
+        "uid": "$Env",
+        "type": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "sum by (node_name) (rate(nic_enic_tx_drop{node_name=~\"$node\\\\n\"}[5m]))",
+          "legendFormat": "{{node_name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "pps",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      }
+    },
+    {
+      "title": "vmxnet3 TX drop (ring full) \u2014 rate",
+      "description": "ethtool -S 'ring full' \u2014 TX ring overflow (main VMware signal)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 4,
+        "x": 20,
+        "y": 5
+      },
+      "id": 55,
+      "datasource": {
+        "uid": "$Env",
+        "type": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "sum by (node_name) (rate(nic_vmxnet3_tx_drop{node_name=~\"$node\\\\n\"}[5m]))",
+          "legendFormat": "{{node_name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "pps",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 13
+      },
+      "id": 700,
+      "title": "Ring Buffer Config (custom exporter)",
+      "type": "row"
+    },
+    {
+      "title": "Ring RX: Current / Max (should be equal)",
+      "type": "bargauge",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 14
+      },
+      "id": 24,
+      "datasource": {
+        "uid": "$Env",
+        "type": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "nic_ring_rx_current{node_name=~\"$node\\\\n\"} / nic_ring_rx_max{node_name=~\"$node\\\\n\"} * 100",
+          "legendFormat": "{{node_name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 50
+              },
+              {
+                "color": "green",
+                "value": 99
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textSize": {}
+      }
+    },
+    {
+      "title": "Ring TX: Current / Max (should be equal)",
+      "type": "bargauge",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 14
+      },
+      "id": 25,
+      "datasource": {
+        "uid": "$Env",
+        "type": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "nic_ring_tx_current{node_name=~\"$node\\\\n\"} / nic_ring_tx_max{node_name=~\"$node\\\\n\"} * 100",
+          "legendFormat": "{{node_name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 50
+              },
+              {
+                "color": "green",
+                "value": 99
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textSize": {}
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 22
+      },
+      "id": 200,
+      "title": "Kernel Backlog (softnet)",
+      "type": "row"
+    },
+    {
+      "title": "Softnet Drops \u2014 Cumulative",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 23
+      },
+      "id": 6,
+      "datasource": {
+        "uid": "$Env",
+        "type": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "sum(node_softnet_dropped_total{instance=~\"$node\"})",
+          "legendFormat": ""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 100
+              },
+              {
+                "color": "red",
+                "value": 10000
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Softnet Drops \u2014 Avg/sec (total\u00f7uptime)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 23
+      },
+      "id": 7,
+      "datasource": {
+        "uid": "$Env",
+        "type": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "sum(node_softnet_dropped_total{instance=~\"$node\"}) / avg(node_time_seconds{instance=~\"$node\"} - node_boot_time_seconds{instance=~\"$node\"})",
+          "legendFormat": ""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "pps",
+          "decimals": 2,
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.1
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Softnet Drops \u2014 Rate (real-time)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 16,
+        "x": 8,
+        "y": 23
+      },
+      "id": 8,
+      "datasource": {
+        "uid": "$Env",
+        "type": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "sum by (instance) (rate(node_softnet_dropped_total{instance=~\"$node\"}[5m]))",
+          "legendFormat": "{{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "pps",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 15
+          }
+        }
+      }
+    },
+    {
+      "title": "Softnet Squeezes \u2014 Rate",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 31
+      },
+      "id": 9,
+      "datasource": {
+        "uid": "$Env",
+        "type": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "sum by (instance) (rate(node_softnet_times_squeezed_total{instance=~\"$node\"}[5m]))",
+          "legendFormat": "{{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      }
+    },
+    {
+      "title": "Softnet Drops per CPU (heatmap)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 31
+      },
+      "id": 10,
+      "datasource": {
+        "uid": "$Env",
+        "type": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "rate(node_softnet_dropped_total{instance=~\"$node\"}[5m])",
+          "legendFormat": "{{instance}} cpu{{cpu}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "pps",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 0
+          }
+        }
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 39
+      },
+      "id": 300,
+      "title": "Kernel netdev (ip -s link) \u2014 NOT ethtool; different counters / layer",
+      "type": "row"
+    },
+    {
+      "title": "RX dropped \u2014 cumulative (ip -s link)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 40
+      },
+      "id": 33,
+      "datasource": {
+        "uid": "$Env",
+        "type": "prometheus"
+      },
+      "description": "node_network_receive_drop_total \u2248 ip -s link RX dropped. Kernel netdev layer \u2014 not the same as ethtool ring_full / rx_no_bufs.",
+      "targets": [
+        {
+          "expr": "sum(node_network_receive_drop_total{device!~\"veth.*|br.*|ovs.*|lo|genev.*\",instance=~\"$node\"}) or vector(0)",
+          "legendFormat": ""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 100
+              },
+              {
+                "color": "red",
+                "value": 10000
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "RX errors \u2014 cumulative (ip -s link)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 40
+      },
+      "id": 34,
+      "datasource": {
+        "uid": "$Env",
+        "type": "prometheus"
+      },
+      "description": "node_network_receive_errs_total \u2248 ip -s link RX errors (CRC, frame, etc.).",
+      "targets": [
+        {
+          "expr": "sum(node_network_receive_errs_total{device!~\"veth.*|br.*|ovs.*|lo|genev.*\",instance=~\"$node\"}) or vector(0)",
+          "legendFormat": ""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 100
+              },
+              {
+                "color": "red",
+                "value": 10000
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "TX dropped \u2014 cumulative (ip -s link)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 40
+      },
+      "id": 35,
+      "datasource": {
+        "uid": "$Env",
+        "type": "prometheus"
+      },
+      "description": "node_network_transmit_drop_total \u2248 ip -s link TX dropped. Not the same as enic ethtool tx_drop.",
+      "targets": [
+        {
+          "expr": "sum(node_network_transmit_drop_total{device!~\"veth.*|br.*|ovs.*|lo|genev.*\",instance=~\"$node\"}) or vector(0)",
+          "legendFormat": ""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 100
+              },
+              {
+                "color": "red",
+                "value": 10000
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "RX dropped \u2014 rate (ip -s link)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 44
+      },
+      "id": 11,
+      "datasource": {
+        "uid": "$Env",
+        "type": "prometheus"
+      },
+      "description": "Rate of kernel netdev RX drops. Compare with NIC Hardware row (ethtool) \u2014 numbers often differ.",
+      "targets": [
+        {
+          "expr": "sum by (instance) (rate(node_network_receive_drop_total{device!~\"veth.*|br.*|ovs.*|lo|genev.*\",instance=~\"$node\"}[5m]))",
+          "legendFormat": "{{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "pps",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      }
+    },
+    {
+      "title": "RX errors \u2014 rate (ip -s link)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 44
+      },
+      "id": 12,
+      "datasource": {
+        "uid": "$Env",
+        "type": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "sum by (instance) (rate(node_network_receive_errs_total{device!~\"veth.*|br.*|ovs.*|lo|genev.*\",instance=~\"$node\"}[5m]))",
+          "legendFormat": "{{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "pps",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      }
+    },
+    {
+      "title": "TX dropped \u2014 rate (ip -s link)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 44
+      },
+      "id": 13,
+      "datasource": {
+        "uid": "$Env",
+        "type": "prometheus"
+      },
+      "description": "Rate of kernel netdev TX drops \u2014 distinct from nic_tx_drop (enic ethtool).",
+      "targets": [
+        {
+          "expr": "sum by (instance) (rate(node_network_transmit_drop_total{device!~\"veth.*|br.*|ovs.*|lo|genev.*\",instance=~\"$node\"}[5m]))",
+          "legendFormat": "{{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "pps",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 52
+      },
+      "id": 400,
+      "title": "TCP / UDP Health",
+      "type": "row"
+    },
+    {
+      "title": "TCP Retransmissions \u2014 Rate",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 53
+      },
+      "id": 14,
+      "datasource": {
+        "uid": "$Env",
+        "type": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "rate(node_netstat_Tcp_RetransSegs{instance=~\"$node\"}[5m])",
+          "legendFormat": "{{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "pps",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      }
+    },
+    {
+      "title": "TCP Timeouts \u2014 Rate",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 53
+      },
+      "id": 15,
+      "datasource": {
+        "uid": "$Env",
+        "type": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "rate(node_netstat_TcpExt_TCPTimeouts{instance=~\"$node\"}[5m])",
+          "legendFormat": "{{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      }
+    },
+    {
+      "title": "Listen Drops + Overflows \u2014 Rate",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 53
+      },
+      "id": 16,
+      "datasource": {
+        "uid": "$Env",
+        "type": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "rate(node_netstat_TcpExt_ListenDrops{instance=~\"$node\"}[5m])",
+          "legendFormat": "{{instance}} drops"
+        },
+        {
+          "expr": "rate(node_netstat_TcpExt_ListenOverflows{instance=~\"$node\"}[5m])",
+          "legendFormat": "{{instance}} overflows"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      }
+    },
+    {
+      "title": "UDP RcvbufErrors \u2014 Rate",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 53
+      },
+      "id": 30,
+      "datasource": {
+        "uid": "$Env",
+        "type": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "rate(node_netstat_Udp_RcvbufErrors{instance=~\"$node\"}[5m])",
+          "legendFormat": "{{instance}} UDP RX buf overflow"
+        },
+        {
+          "expr": "rate(node_netstat_Udp_InErrors{instance=~\"$node\"}[5m])",
+          "legendFormat": "{{instance}} UDP errors"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 0
+          }
+        }
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 69
+      },
+      "id": 500,
+      "title": "Throughput (context)",
+      "type": "row"
+    },
+    {
+      "title": "RX Packets/sec",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 62
+      },
+      "id": 17,
+      "datasource": {
+        "uid": "$Env",
+        "type": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "sum by (instance) (rate(node_network_receive_packets_total{device!~\"veth.*|br.*|ovs.*|lo|genev.*\",instance=~\"$node\"}[5m]))",
+          "legendFormat": "{{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "pps",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 5
+          }
+        }
+      }
+    },
+    {
+      "title": "TX Packets/sec",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 62
+      },
+      "id": 18,
+      "datasource": {
+        "uid": "$Env",
+        "type": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "sum by (instance) (rate(node_network_transmit_packets_total{device!~\"veth.*|br.*|ovs.*|lo|genev.*\",instance=~\"$node\"}[5m]))",
+          "legendFormat": "{{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "pps",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 5
+          }
+        }
+      }
+    },
+    {
+      "title": "RX Bandwidth",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 62
+      },
+      "id": 19,
+      "datasource": {
+        "uid": "$Env",
+        "type": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "sum by (instance) (rate(node_network_receive_bytes_total{device!~\"veth.*|br.*|ovs.*|lo|genev.*\",instance=~\"$node\"}[5m])) * 8",
+          "legendFormat": "{{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bps",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 5
+          }
+        }
+      }
+    },
+    {
+      "title": "TX Bandwidth",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 62
+      },
+      "id": 20,
+      "datasource": {
+        "uid": "$Env",
+        "type": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "sum by (instance) (rate(node_network_transmit_bytes_total{device!~\"veth.*|br.*|ovs.*|lo|genev.*\",instance=~\"$node\"}[5m])) * 8",
+          "legendFormat": "{{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bps",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 5
+          }
+        }
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 70
+      },
+      "id": 600,
+      "title": "Conntrack",
+      "type": "row"
+    },
+    {
+      "title": "Conntrack Usage (%) per Node",
+      "type": "bargauge",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 71
+      },
+      "id": 21,
+      "datasource": {
+        "uid": "$Env",
+        "type": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "node_nf_conntrack_entries{instance=~\"$node\"} / node_nf_conntrack_entries_limit{instance=~\"$node\"} * 100",
+          "legendFormat": "{{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      }
+    },
+    {
+      "title": "Conntrack Entries",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 71
+      },
+      "id": 22,
+      "datasource": {
+        "uid": "$Env",
+        "type": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "node_nf_conntrack_entries{instance=~\"$node\"}",
+          "legendFormat": "{{instance}} current"
+        },
+        {
+          "expr": "node_nf_conntrack_entries_limit{instance=~\"$node\"}",
+          "legendFormat": "Limit {{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 0
+          }
+        }
+      }
+    },
+    {
+      "title": "Conntrack Drops",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 71
+      },
+      "id": 23,
+      "datasource": {
+        "uid": "$Env",
+        "type": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "rate(node_nf_conntrack_stat_drop{instance=~\"$node\"}[5m])",
+          "legendFormat": "{{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 79
+      },
+      "id": 800,
+      "title": "Thermal & CPU Throttling (bare-metal only \u2014 no data on VMs)",
+      "type": "row"
+    },
+    {
+      "title": "CPU Temperature (hwmon)",
+      "description": "CPU package/core temps from coretemp (Intel) or k10temp (AMD). Alert threshold: 85C.",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 80
+      },
+      "id": 26,
+      "datasource": {
+        "uid": "$Env",
+        "type": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "node_hwmon_temp_celsius{instance=~\"$node\",chip=~\".*coretemp.*|.*k10temp.*\"}",
+          "legendFormat": "{{instance}} {{sensor}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "min": 20,
+          "max": 105,
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 75
+              },
+              {
+                "color": "orange",
+                "value": 85
+              },
+              {
+                "color": "red",
+                "value": 95
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      }
+    },
+    {
+      "title": "NIC / Transceiver Temperature",
+      "description": "Temperatures from non-CPU hwmon sensors and thermal zones. Overheating SFP+ causes CRC errors and link flaps.",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 80
+      },
+      "id": 29,
+      "datasource": {
+        "uid": "$Env",
+        "type": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "node_hwmon_temp_celsius{instance=~\"$node\",chip!~\".*coretemp.*|.*k10temp.*\"}",
+          "legendFormat": "{{instance}} {{chip}} {{sensor}}"
+        },
+        {
+          "expr": "node_thermal_zone_temp{instance=~\"$node\"} / 1000",
+          "legendFormat": "{{instance}} zone{{zone}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "min": 20,
+          "max": 105,
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 65
+              },
+              {
+                "color": "orange",
+                "value": 75
+              },
+              {
+                "color": "red",
+                "value": 85
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      }
+    },
+    {
+      "title": "CPU Throttle Events (must be 0)",
+      "description": "Non-zero means CPU was forced to reduce clock due to thermal limits. Correlate with ring_full spikes.",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 80
+      },
+      "id": 27,
+      "datasource": {
+        "uid": "$Env",
+        "type": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "rate(node_cpu_core_throttles_total{instance=~\"$node\"}[5m])",
+          "legendFormat": "{{instance}} core{{cpu}}"
+        },
+        {
+          "expr": "rate(node_cpu_package_throttles_total{instance=~\"$node\"}[5m])",
+          "legendFormat": "{{instance}} pkg"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          },
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.01
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "CPU Frequency (drops = throttling)",
+      "description": "Actual clock speed per core. A sudden drop correlates with thermal throttle events.",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 80
+      },
+      "id": 28,
+      "datasource": {
+        "uid": "$Env",
+        "type": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "node_cpu_frequency_hertz{instance=~\"$node\"} / 1e9",
+          "legendFormat": "{{instance}} cpu{{cpu}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "GHz",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 0
+          }
+        }
+      }
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": [
+    "nic",
+    "tuning",
+    "network",
+    "openshift"
+  ],
+  "templating": {
+    "list": [
+      {
+        "type": "datasource",
+        "name": "Env",
+        "label": "Environment",
+        "current": {
+          "text": "Thanos",
+          "value": "thanos"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false
+      },
+      {
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "uid": "$Env",
+          "type": "prometheus"
+        },
+        "definition": "label_values(node_uname_info, instance)",
+        "includeAll": true,
+        "multi": true,
+        "name": "node",
+        "query": "label_values(node_uname_info, instance)",
+        "refresh": 2,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "title": "NIC Health & Tuning Validation",
+  "uid": "nic-health-tuning"
+}

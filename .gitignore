@@ -1,0 +1,16 @@
+# Red Hat proprietary content — cannot be uploaded
+references/kcs/
+references/cases/
+references/rh-consulting/
+
+# Diagnostics may contain sensitive node data
+diagnostics/
+
+# OS/IDE artifacts
+.DS_Store
+*.swp
+*~
+.venv/
+__pycache__/
+Ultralytics/
+.obsidian/

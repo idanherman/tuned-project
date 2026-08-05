@@ -1,0 +1,72 @@
+# Tuned CR: vm-infra
+# Target: VMware vSphere infra/router nodes (hosting HAProxy ingress controller)
+# Priority: 16
+# Match: node-role.kubernetes.io/infra
+#
+# Key settings:
+#   - Ring buffers 4096: same fix as control-plane (ring_full drops)
+#   - somaxconn=10240: elevated listen backlog for HAProxy connection bursts
+#   - tcp_max_syn_backlog=8192: handles SYN flood / high legitimate connection rates
+#   - fs.file-max / fs.nr_open: raised for HAProxy's high maxconn (each conn = 1 FD)
+#   - ip_local_port_range widened: prevents ephemeral port exhaustion on reverse proxy
+#   - THP: intentionally NOT disabled (routers benefit from THP like control-plane)
+#
+# Source: Red Hat Case 04495863 + RH-PS-Router-Optimization-Template
+# somaxconn rationale: HAProxy listen backlog is bounded by min(app_backlog, somaxconn).
+# RH Performance Scaling Guide recommends 10240 for router nodes.
+---
+apiVersion: tuned.openshift.io/v1
+kind: Tuned
+metadata:
+  name: vm-infra
+  namespace: openshift-cluster-node-tuning-operator
+spec:
+  profile:
+    - name: vm-infra
+      data: |
+        [main]
+        summary=VMware infra/router: ring 4096, somaxconn 10240, HAProxy FD limits, THP=always
+        include=openshift-node
+
+        [sysctl]
+        kernel.printk = 4 4 1 7
+
+        # --- Connection acceptance ---
+        # Listen backlog for HAProxy (RH recommends 10240 for router nodes)
+        net.core.somaxconn = 10240
+        # SYN backlog: how many half-open (SYN_RECV) connections to queue
+        # Protects against SYN floods and handles high legitimate connection rates
+        net.ipv4.tcp_max_syn_backlog = 8192
+
+        # --- File descriptor limits ---
+        # HAProxy needs 1 FD per connection. With maxconn=50000, need >> 50000 FDs.
+        # These must exceed HAProxy's maxConnections setting in IngressController CR.
+        fs.file-max = 2097152
+        fs.nr_open = 2097152
+
+        # --- Ephemeral port range ---
+        # HAProxy as reverse proxy opens connections to backends using ephemeral ports.
+        # Default range (32768-60999) = ~28K ports. Widened to ~64K to prevent exhaustion.
+        net.ipv4.ip_local_port_range = 1024 65535
+
+        # --- Memory map limit ---
+        # Number of memory-mapped areas per process. Raised for connection-heavy HAProxy.
+        vm.max_map_count = 262144
+
+        [net]
+        type=net
+        devices_udev_regex=^ID_NET_DRIVER=vmxnet3
+        # Fix ring buffers from default 1024/512 to max 4096
+        ring=rx 4096 tx 4096
+
+        # THP: kept at always (same rationale as control-plane — routers are long-running)
+  recommend:
+    - match:
+        # Standard OCP infra role label. Nodes must be labeled:
+        #   oc label node <name> node-role.kubernetes.io/infra=
+        # Infra nodes typically host router pods, monitoring, and logging.
+        - label: node-role.kubernetes.io/infra
+      # Priority 16 — after control-plane (15), before workers (20)
+      # Overrides built-in openshift-control-plane (30) which also matches infra nodes
+      priority: 16
+      profile: vm-infra

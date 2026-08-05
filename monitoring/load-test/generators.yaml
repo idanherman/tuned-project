@@ -1,0 +1,124 @@
+# Generator 1: UDP packet flood — triggers ring_full / rx_no_bufs
+# Sends millions of tiny UDP packets per second to overwhelm ring buffers
+apiVersion: v1
+kind: Pod
+metadata:
+  name: iperf3-flood
+  namespace: load-test
+  labels:
+    app: load-generator
+    type: udp-flood
+spec:
+  restartPolicy: Never
+  containers:
+  - name: iperf3
+    image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+    command: ['/bin/sh', '-c']
+    args:
+    - |
+      microdnf install -y iperf3 2>/dev/null >&2
+      echo "Starting UDP flood: 64-byte packets at max rate for 300s"
+      # -u = UDP, -l 64 = tiny packets (high pps), -b 0 = no bandwidth limit, -t 300 = 5 min
+      iperf3 -c iperf3-server.load-test.svc -u -l 64 -b 0 -t 300 -p 5201
+      echo "UDP flood complete"
+    resources:
+      requests:
+        cpu: "2"
+        memory: 512Mi
+---
+# Generator 2: TCP multistream — triggers softnet_drops via backlog pressure
+# 16 parallel TCP streams saturate per-CPU processing
+apiVersion: v1
+kind: Pod
+metadata:
+  name: iperf3-multistream
+  namespace: load-test
+  labels:
+    app: load-generator
+    type: tcp-multistream
+spec:
+  restartPolicy: Never
+  containers:
+  - name: iperf3
+    image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+    command: ['/bin/sh', '-c']
+    args:
+    - |
+      microdnf install -y iperf3 2>/dev/null >&2
+      echo "Starting 16-stream TCP flood for 300s"
+      # -P 16 = 16 parallel streams, -t 300 = 5 minutes
+      iperf3 -c iperf3-server.load-test.svc -P 16 -t 300 -p 5201
+      echo "TCP multistream complete"
+    resources:
+      requests:
+        cpu: "2"
+        memory: 512Mi
+---
+# Generator 3: TCP connection flood — triggers ListenDrops / ListenOverflows
+# Rapidly opens and closes TCP connections to exhaust accept queue
+apiVersion: v1
+kind: Pod
+metadata:
+  name: connection-flood
+  namespace: load-test
+  labels:
+    app: load-generator
+    type: conn-flood
+spec:
+  restartPolicy: Never
+  containers:
+  - name: flood
+    image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+    command: ['/bin/sh', '-c']
+    args:
+    - |
+      microdnf install -y nmap-ncat 2>/dev/null >&2
+      echo "Starting connection flood: rapid connect/disconnect to http-server for 300s"
+      END=$(($(date +%s) + 300))
+      COUNT=0
+      while [ $(date +%s) -lt $END ]; do
+        # Open 100 connections in parallel, immediately close
+        for i in $(seq 1 100); do
+          (echo "" | nc -w 1 http-server.load-test.svc 8080) &
+        done
+        wait
+        COUNT=$((COUNT + 100))
+      done
+      echo "Connection flood complete: $COUNT connections attempted"
+    resources:
+      requests:
+        cpu: "1"
+        memory: 256Mi
+---
+# Generator 4: HTTP request flood via route — triggers router somaxconn, TCP retransmits
+# High-rate HTTP requests through the OCP ingress router
+apiVersion: v1
+kind: Pod
+metadata:
+  name: http-flood
+  namespace: load-test
+  labels:
+    app: load-generator
+    type: http-flood
+spec:
+  restartPolicy: Never
+  containers:
+  - name: hey
+    image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+    command: ['/bin/sh', '-c']
+    args:
+    - |
+      microdnf install -y golang 2>/dev/null >&2
+      go install github.com/rakyll/hey@latest 2>/dev/null >&2
+      ROUTE=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace 2>/dev/null || echo "load-test")
+      ROUTE_URL="http://http-server-load-test.apps.<CLUSTER_DOMAIN>"
+      echo "Starting HTTP flood: 200 concurrent, 100k requests to $ROUTE_URL"
+      # -c 200 = 200 concurrent workers, -n 100000 = total requests
+      ~/go/bin/hey -c 200 -n 100000 "$ROUTE_URL" || \
+        echo "hey not available, falling back to curl loop" && \
+        for i in $(seq 1 10000); do curl -s -o /dev/null "$ROUTE_URL" & [ $((i % 50)) -eq 0 ] && wait; done
+      echo "HTTP flood complete"
+    resources:
+      requests:
+        cpu: "2"
+        memory: 1Gi

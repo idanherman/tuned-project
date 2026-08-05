@@ -1,0 +1,54 @@
+# Tuned CR: vm-worker
+# Target: VMware vSphere worker nodes
+# Priority: 20 (lowest — catch-all for VMs not matched by higher-priority BM profiles)
+# Match: node-role.kubernetes.io/worker
+#
+# IMPORTANT: This profile also matches bare-metal workers if they're missing the
+# node.kubernetes.io/nic-driver label. Always verify BM nodes are correctly labeled
+# before deploying. Run scripts/validate-tuning.sh to check.
+#
+# Key settings:
+#   - Ring buffers 4096: same fix as other VM nodes
+#   - THP=never: workers run user pods, compaction causes latency spikes
+#
+# This profile is intentionally minimal — VM workers don't need the BM-specific
+# network tuning (backlog, budget, tcp_rmem) because vmxnet3 + hypervisor scheduling
+# naturally limits packet rates below where those parameters matter.
+---
+apiVersion: tuned.openshift.io/v1
+kind: Tuned
+metadata:
+  name: vm-worker
+  namespace: openshift-cluster-node-tuning-operator
+spec:
+  profile:
+    - name: vm-worker
+      data: |
+        [main]
+        summary=VMware workers: ring 4096, THP=never (standard for containerized workloads)
+        include=openshift-node
+
+        [vm]
+        # Disable THP on workers — compaction latency spikes affect user pod performance
+        # Short-lived pods with varied memory patterns don't benefit from huge pages
+        transparent_hugepages=never
+
+        [sysctl]
+        kernel.printk = 4 4 1 7
+
+        [net]
+        type=net
+        devices_udev_regex=^ID_NET_DRIVER=vmxnet3
+        # Fix ring buffers from default 1024/512 to max 4096
+        ring=rx 4096 tx 4096
+  recommend:
+    - match:
+        # Standard OCP worker role label. ALL workers have this — including bare-metal.
+        # BM nodes are "saved" by their nic-driver label matching priority 10-12 first.
+        # If a BM node is MISSING its nic-driver label, it will get THIS profile (wrong!).
+        # Always verify with: scripts/validate-tuning.sh
+        - label: node-role.kubernetes.io/worker
+      # Priority 20 — lowest custom profile. Catch-all for VMs without a more specific match.
+      # BM profiles (10-12) win if their label matches. Built-in openshift-node (40) loses.
+      priority: 20
+      profile: vm-worker

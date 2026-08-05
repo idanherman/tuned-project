@@ -1,0 +1,100 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: paas-node-exporter
+  namespace: paas-monitoring
+  labels:
+    paas-node-exporter: "true"
+    app: paas-node-exporter
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: paas-node-exporter
+  namespace: paas-monitoring
+  labels:
+    paas-node-exporter: "true"
+    app: paas-node-exporter
+spec:
+  selector:
+    matchLabels:
+      paas-node-exporter: "true"
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        paas-node-exporter: "true"
+        app: paas-node-exporter
+    spec:
+      serviceAccountName: paas-node-exporter
+      hostNetwork: true
+      hostPID: true
+      dnsPolicy: ClusterFirstWithHostNet
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: paas-node-exporter
+          image: <REGISTRY_HOST>:5000/tools/paas-node-exporter:latest
+          imagePullPolicy: Always
+          ports:
+            - name: metrics
+              containerPort: 8000
+              protocol: TCP
+          env:
+            - name: COMMAND_FILE_LOC
+              value: /app/commands
+            - name: METRICS_PORT
+              value: "8000"
+            - name: HOSTNAME_PATH
+              value: /host/proc/sys/kernel/hostname
+          securityContext:
+            privileged: true
+            runAsUser: 0
+          resources:
+            requests:
+              cpu: 20m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          volumeMounts:
+            - name: commands
+              mountPath: /app/commands
+              subPath: commands
+              readOnly: true
+            - name: host-proc
+              mountPath: /host/proc
+              readOnly: true
+            - name: host-sys
+              mountPath: /sys
+              readOnly: true
+      volumes:
+        - name: commands
+          configMap:
+            name: paas-node-exporter-commands
+            items:
+              - key: commands
+                path: commands
+        - name: host-proc
+          hostPath:
+            path: /proc
+            type: Directory
+        - name: host-sys
+          hostPath:
+            path: /sys
+            type: Directory

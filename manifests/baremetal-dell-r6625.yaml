@@ -1,0 +1,64 @@
+# Tuned CR: baremetal-dell-r6625
+# Target: Dell PowerEdge R6625 with Broadcom Quad 25Gb (bnxt_en driver)
+# Priority: 12
+# Match: nodes labeled node.kubernetes.io/nic-driver=bnxt_en
+# Status: DESIGNED — not deployed yet (waiting for hardware)
+#
+# Key settings:
+#   - Ring buffers 4096: prevent hardware drops
+#   - Adaptive coalescing: Broadcom recommends (unlike Intel which prefers fixed)
+#   - ntuple + rx-gro-hw: per-flow steering + hardware GRO for reduced per-packet overhead
+#   - netdev_max_backlog=5000: prevent softnet_drops at 25GbE
+#   - THP=never: standard for workers
+#
+# NOTE: tcp_rmem is left at RHEL default — bnxt_en is NOT affected by RHEL-97545 regression
+# TODO: channels setting deferred until NUMA topology is verified (AMD EPYC CCX geometry)
+---
+apiVersion: tuned.openshift.io/v1
+kind: Tuned
+metadata:
+  name: baremetal-dell-r6625
+  namespace: openshift-cluster-node-tuning-operator
+spec:
+  profile:
+    - name: baremetal-dell-r6625
+      data: |
+        [main]
+        summary=Dell R6625 (bnxt_en): ring 4096, adaptive coalesce, ntuple+GRO, backlog 5000, THP never
+        include=openshift-node
+
+        [vm]
+        transparent_hugepages=never
+
+        [sysctl]
+        kernel.printk = 4 4 1 7
+        net.core.netdev_budget = 600
+        net.core.netdev_budget_usecs = 4000
+        net.core.netdev_max_backlog = 5000
+        net.core.wmem_max = 16777216
+        net.core.rmem_max = 16777216
+        # Default tcp_rmem — bnxt_en auto-tuning works correctly (not affected by RHEL-97545)
+        net.ipv4.tcp_rmem = 4096 131072 16777216
+        net.ipv4.tcp_wmem = 4096 131072 16777216
+
+        [net]
+        type=net
+        devices_udev_regex=^ID_NET_DRIVER=bnxt_en
+        # Max ring buffers (hardware max is 8151, 4096 is sufficient and consistent)
+        ring=rx 4096 tx 4096
+        # Broadcom recommends adaptive coalescing (driver dynamically adjusts to traffic)
+        coalesce=adaptive-rx on adaptive-tx on
+        # ntuple: Broadcom flow steering (stable implementation, recommended for servers)
+        # rx-gro-hw: hardware GRO aggregates packets at NIC, reducing per-packet kernel overhead
+        features=ntuple on rx-gro-hw on
+        # channels: deferred — need to verify AMD EPYC NUMA/CCX topology on R6625
+        # channels=combined N  — add once cores-per-NUMA is confirmed
+  recommend:
+    - match:
+        # Custom label — must be applied manually:
+        #   oc label node <name> node.kubernetes.io/nic-driver=bnxt_en
+        - label: node.kubernetes.io/nic-driver
+          value: bnxt_en
+      # Priority 12 — after enic (10) and i40e (11), before VM profiles (15+)
+      priority: 12
+      profile: baremetal-dell-r6625
