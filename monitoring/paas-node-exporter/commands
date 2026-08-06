@@ -1,12 +1,27 @@
-# interval,metric_name,command,is_string
-# Six NIC counters (per driver): RX buffer | RX drop | TX drop
-30,nic_enic_rx_buffer,for i in /sys/class/net/*; do n=${i##*/}; [ "$(cat $i/type 2>/dev/null)" = 1 ] || continue; ethtool -i "$n" 2>/dev/null | grep -q 'driver: enic' || continue; ethtool -S "$n" 2>/dev/null | awk '/rx_no_bufs:/{print $2+0; exit}'; exit; done; echo 0,False
-30,nic_vmxnet3_rx_buffer,for i in /sys/class/net/*; do n=${i##*/}; [ "$(cat $i/type 2>/dev/null)" = 1 ] || continue; ethtool -i "$n" 2>/dev/null | grep -q 'driver: vmxnet3' || continue; ethtool -S "$n" 2>/dev/null | awk '/pkts rx OOB:/{s+=$4} END{print s+0}'; exit; done; echo 0,False
-30,nic_enic_rx_drop,for i in /sys/class/net/*; do n=${i##*/}; [ "$(cat $i/type 2>/dev/null)" = 1 ] || continue; ethtool -i "$n" 2>/dev/null | grep -q 'driver: enic' || continue; ethtool -S "$n" 2>/dev/null | awk '/^[[:space:]]*rx_drop:/{print $2+0; exit}'; exit; done; echo 0,False
-30,nic_vmxnet3_rx_drop,for i in /sys/class/net/*; do n=${i##*/}; [ "$(cat $i/type 2>/dev/null)" = 1 ] || continue; ethtool -i "$n" 2>/dev/null | grep -q 'driver: vmxnet3' || continue; ethtool -S "$n" 2>/dev/null | awk '/drv dropped rx total:/{s+=$5} END{print s+0}'; exit; done; echo 0,False
-30,nic_enic_tx_drop,for i in /sys/class/net/*; do n=${i##*/}; [ "$(cat $i/type 2>/dev/null)" = 1 ] || continue; ethtool -i "$n" 2>/dev/null | grep -q 'driver: enic' || continue; ethtool -S "$n" 2>/dev/null | awk '/^[[:space:]]*tx_drop:/{print $2+0; exit}'; exit; done; echo 0,False
-30,nic_vmxnet3_tx_drop,for i in /sys/class/net/*; do n=${i##*/}; [ "$(cat $i/type 2>/dev/null)" = 1 ] || continue; ethtool -i "$n" 2>/dev/null | grep -q 'driver: vmxnet3' || continue; ethtool -S "$n" 2>/dev/null | awk '/ring full:/{s+=$3} END{print s+0}'; exit; done; echo 0,False
-30,nic_ring_rx_current,for i in /sys/class/net/*; do n=${i##*/}; [ "$(cat $i/type 2>/dev/null)" = 1 ] || continue; d=$(ethtool -i "$n" 2>/dev/null | awk '/^driver:/{print $2}'); case "$d" in ''|bridge|openvswitch|veth|tun|geneve|vxlan) continue;; esac; ethtool -g "$n" 2>/dev/null | awk '/Current hardware settings:/{c=1} c&&/^RX:/{print $2; exit}'; exit; done; echo 0,False
-30,nic_ring_rx_max,for i in /sys/class/net/*; do n=${i##*/}; [ "$(cat $i/type 2>/dev/null)" = 1 ] || continue; d=$(ethtool -i "$n" 2>/dev/null | awk '/^driver:/{print $2}'); case "$d" in ''|bridge|openvswitch|veth|tun|geneve|vxlan) continue;; esac; ethtool -g "$n" 2>/dev/null | awk '/Pre-set maximums:/{c=1} c&&/^RX:/{print $2; exit}'; exit; done; echo 0,False
-30,nic_ring_tx_current,for i in /sys/class/net/*; do n=${i##*/}; [ "$(cat $i/type 2>/dev/null)" = 1 ] || continue; d=$(ethtool -i "$n" 2>/dev/null | awk '/^driver:/{print $2}'); case "$d" in ''|bridge|openvswitch|veth|tun|geneve|vxlan) continue;; esac; ethtool -g "$n" 2>/dev/null | awk '/Current hardware settings:/{c=1} c&&/^TX:/{print $2; exit}'; exit; done; echo 0,False
-30,nic_ring_tx_max,for i in /sys/class/net/*; do n=${i##*/}; [ "$(cat $i/type 2>/dev/null)" = 1 ] || continue; d=$(ethtool -i "$n" 2>/dev/null | awk '/^driver:/{print $2}'); case "$d" in ''|bridge|openvswitch|veth|tun|geneve|vxlan) continue;; esac; ethtool -g "$n" 2>/dev/null | awk '/Pre-set maximums:/{c=1} c&&/^TX:/{print $2; exit}'; exit; done; echo 0,False
+# interval,metric_name,command,mode
+# Mode: False=single value, True=string info, Device=multi-NIC "device value" pairs
+#
+# Iterates ALL physical NICs (excludes virtual: veth, bridge, ovs, tun, geneve, vxlan).
+# Each metric emits one line per NIC: "interface_name value"
+#
+# --- RX buffer exhaustion (driver-specific: rx_no_bufs/pkts_rx_OOB/rx_missed_errors/rx_discard_pkts) ---
+30,nic_rx_no_bufs_total,for i in /sys/class/net/*; do n=${i##*/}; [ "$(cat $i/type 2>/dev/null)" = 1 ] || continue; d=$(ethtool -i "$n" 2>/dev/null | awk '/^driver:/{print $2}'); case "$d" in ''|bridge|openvswitch|veth|tun|geneve|vxlan|ovs-system) continue;; esac; v=$(ethtool -S "$n" 2>/dev/null | awk '/rx_no_bufs:|pkts rx OOB:|rx_missed_errors:|rx_discard_pkts:/{s+=$NF} END{print s+0}'); echo "$n $v"; done,Device
+#
+# --- RX drops (generic driver-reported rx_drop / drv dropped) ---
+30,nic_rx_drop_total,for i in /sys/class/net/*; do n=${i##*/}; [ "$(cat $i/type 2>/dev/null)" = 1 ] || continue; d=$(ethtool -i "$n" 2>/dev/null | awk '/^driver:/{print $2}'); case "$d" in ''|bridge|openvswitch|veth|tun|geneve|vxlan|ovs-system) continue;; esac; v=$(ethtool -S "$n" 2>/dev/null | awk '/^[[:space:]]*(rx_drop|drv dropped rx total):/{s+=$NF} END{print s+0}'); echo "$n $v"; done,Device
+#
+# --- TX drops (ring full / tx_drop / tx_dropped / tx_discard_pkts) ---
+30,nic_tx_drop_total,for i in /sys/class/net/*; do n=${i##*/}; [ "$(cat $i/type 2>/dev/null)" = 1 ] || continue; d=$(ethtool -i "$n" 2>/dev/null | awk '/^driver:/{print $2}'); case "$d" in ''|bridge|openvswitch|veth|tun|geneve|vxlan|ovs-system) continue;; esac; v=$(ethtool -S "$n" 2>/dev/null | awk '/^[[:space:]]*(tx_drop|ring full|tx_dropped|tx_discard_pkts):/{s+=$NF} END{print s+0}'); echo "$n $v"; done,Device
+#
+# --- Ring buffer current/max (verify tuning applied) ---
+30,nic_ring_rx_current,for i in /sys/class/net/*; do n=${i##*/}; [ "$(cat $i/type 2>/dev/null)" = 1 ] || continue; d=$(ethtool -i "$n" 2>/dev/null | awk '/^driver:/{print $2}'); case "$d" in ''|bridge|openvswitch|veth|tun|geneve|vxlan|ovs-system) continue;; esac; v=$(ethtool -g "$n" 2>/dev/null | awk '/Current hardware settings:/{c=1} c&&/^RX:/{print $2; exit}'); [ -n "$v" ] && echo "$n $v"; done,Device
+30,nic_ring_rx_max,for i in /sys/class/net/*; do n=${i##*/}; [ "$(cat $i/type 2>/dev/null)" = 1 ] || continue; d=$(ethtool -i "$n" 2>/dev/null | awk '/^driver:/{print $2}'); case "$d" in ''|bridge|openvswitch|veth|tun|geneve|vxlan|ovs-system) continue;; esac; v=$(ethtool -g "$n" 2>/dev/null | awk '/Pre-set maximums:/{c=1} c&&/^RX:/{print $2; exit}'); [ -n "$v" ] && echo "$n $v"; done,Device
+30,nic_ring_tx_current,for i in /sys/class/net/*; do n=${i##*/}; [ "$(cat $i/type 2>/dev/null)" = 1 ] || continue; d=$(ethtool -i "$n" 2>/dev/null | awk '/^driver:/{print $2}'); case "$d" in ''|bridge|openvswitch|veth|tun|geneve|vxlan|ovs-system) continue;; esac; v=$(ethtool -g "$n" 2>/dev/null | awk '/Current hardware settings:/{c=1} c&&/^TX:/{print $2; exit}'); [ -n "$v" ] && echo "$n $v"; done,Device
+30,nic_ring_tx_max,for i in /sys/class/net/*; do n=${i##*/}; [ "$(cat $i/type 2>/dev/null)" = 1 ] || continue; d=$(ethtool -i "$n" 2>/dev/null | awk '/^driver:/{print $2}'); case "$d" in ''|bridge|openvswitch|veth|tun|geneve|vxlan|ovs-system) continue;; esac; v=$(ethtool -g "$n" 2>/dev/null | awk '/Pre-set maximums:/{c=1} c&&/^TX:/{print $2; exit}'); [ -n "$v" ] && echo "$n $v"; done,Device
+#
+# --- NIC link speed (Mbps — detect link flaps or speed downgrades) ---
+30,nic_link_speed_mbps,for i in /sys/class/net/*; do n=${i##*/}; [ "$(cat $i/type 2>/dev/null)" = 1 ] || continue; d=$(ethtool -i "$n" 2>/dev/null | awk '/^driver:/{print $2}'); case "$d" in ''|bridge|openvswitch|veth|tun|geneve|vxlan|ovs-system) continue;; esac; s=$(cat /sys/class/net/$n/speed 2>/dev/null); [ -n "$s" ] && [ "$s" != "-1" ] && echo "$n $s"; done,Device
+#
+# --- TCP memory (system-wide — monitor tcp_rmem pressure) ---
+30,tcp_sockstat_mem_pages,cat /proc/net/sockstat | awk '/^TCP:/{for(i=1;i<=NF;i++) if($i=="mem") print $(i+1)}',False
+30,tcp_sockstat_alloc,cat /proc/net/sockstat | awk '/^TCP:/{for(i=1;i<=NF;i++) if($i=="alloc") print $(i+1)}',False

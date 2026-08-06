@@ -32,8 +32,8 @@ sysctl net.core.netdev_budget net.core.netdev_budget_usecs
 
 | Environment | netdev_budget | netdev_budget_usecs | Rationale |
 |-------------|--------------|---------------------|-----------|
-| VMs (vmxnet3, enic) | 300 (default) | 2000 (default) | Virtual NICs have lower line rates; defaults are sufficient |
-| BM (i40e, bnxt_en) | **600** | **4000** | 10GbE line rates exceed what 300/2000 can drain per cycle |
+| VMs (vmxnet3) | 300 (default) | 2000 (default) | Virtual NICs have lower line rates; defaults are sufficient |
+| BM (i40e, bnxt_en, enic) | **600** | **4000** | 10GbE line rates exceed what 300/2000 can drain per cycle |
 
 ## Why budget_usecs matters
 

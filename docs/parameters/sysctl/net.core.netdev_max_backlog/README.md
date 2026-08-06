@@ -24,8 +24,8 @@ sysctl net.core.netdev_max_backlog
 
 | Environment | Value | Rationale |
 |-------------|-------|-----------|
-| VMs (vmxnet3, enic) | 1000 (default) | Typically no `softnet_drops` on VMs; backlog not a bottleneck |
-| BM (i40e, bnxt_en) | **5000** | Fixes millions of `softnet_drops` seen at default 1000 |
+| VMs (vmxnet3) | 1000 (default) | Typically no `softnet_drops` on VMs; backlog not a bottleneck |
+| BM (i40e, bnxt_en, enic) | **5000** | Fixes millions of `softnet_drops` seen at default 1000 |
 
 ## Tuning methodology
 

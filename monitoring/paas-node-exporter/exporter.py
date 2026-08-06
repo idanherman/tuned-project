@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
-"""Command-driven Prometheus node exporter (ConfigMap-based).
+"""ConfigMap-driven Prometheus node exporter (DaemonSet).
 
-Reads lines: interval,metric_name,command,func_bool
-Runs each command via os.popen on an interval and exposes gauges on :8000/metrics.
+Reads command lines from a ConfigMap-mounted file and exposes metrics on :8000/metrics.
+
+Line format: interval,metric_name,command,mode
+Modes:
+  False  — command outputs a single numeric value; labels: [node_name]
+  True   — command outputs a string; value=1, string in 'data' label: [node_name, data]
+  Device — command outputs 'device_name value' per line; labels: [node_name, device]
 """
 
 from __future__ import annotations
@@ -19,6 +24,10 @@ HOSTNAME_PATH = os.environ.get(
     "HOSTNAME_PATH", "/host/proc/sys/kernel/hostname"
 )
 
+MODE_SINGLE = "single"
+MODE_STRING = "string"
+MODE_DEVICE = "device"
+
 
 def node_name() -> str:
     try:
@@ -32,7 +41,7 @@ NODE = node_name()
 
 
 def parse_command_string(line: str):
-    """ConfigMap line parser: interval,name,command,...,func.
+    """ConfigMap line parser: interval,name,command,...,mode.
 
     Command may contain commas; middle fields are rejoined.
     """
@@ -42,8 +51,14 @@ def parse_command_string(line: str):
     interval = int(elements[0])
     gauge_name = elements[1]
     command = ",".join(elements[2:-1])
-    func = elements[-1].lower() == "true"
-    return interval, gauge_name, command, func
+    mode_raw = elements[-1].lower()
+    if mode_raw == "true":
+        mode = MODE_STRING
+    elif mode_raw == "device":
+        mode = MODE_DEVICE
+    else:
+        mode = MODE_SINGLE
+    return interval, gauge_name, command, mode
 
 
 def load_commands(path: str):
@@ -57,23 +72,49 @@ def load_commands(path: str):
     return commands
 
 
-def act(interval: int, gauge_name: str, command: str, func: bool, gauge: Gauge):
+def act(interval: int, gauge_name: str, command: str, mode: str, gauge: Gauge):
+    """Collector loop: run command, parse output, update gauge."""
+    seen_devices: set[str] = set()
+
     while True:
         try:
             out = os.popen(command).read().strip()
-            if func:
-                # String mode: value=1, payload in label
+
+            if mode == MODE_STRING:
                 gauge.labels(node_name=NODE, data=out[:200] if out else "").set(1)
+
+            elif mode == MODE_DEVICE:
+                current_devices: set[str] = set()
+                for line in out.splitlines():
+                    parts = line.strip().split()
+                    if len(parts) >= 2:
+                        device = parts[0]
+                        try:
+                            value = float(parts[1])
+                        except ValueError:
+                            continue
+                        gauge.labels(node_name=NODE, device=device).set(value)
+                        current_devices.add(device)
+                # Remove stale devices (NIC removed/renamed)
+                for stale in seen_devices - current_devices:
+                    try:
+                        gauge.remove(NODE, stale)
+                    except Exception:
+                        pass
+                seen_devices = current_devices
+
             else:
                 value = float(out.splitlines()[-1]) if out else 0.0
                 gauge.labels(node_name=NODE).set(value)
-        except Exception as exc:  # noqa: BLE001 — keep collector alive
+
+        except Exception as exc:  # noqa: BLE001
             print(f"error {gauge_name}: {exc}", flush=True)
             try:
-                if not func:
+                if mode == MODE_SINGLE:
                     gauge.labels(node_name=NODE).set(0)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
+
         time.sleep(interval)
 
 
@@ -85,20 +126,22 @@ def main():
 
     start_http_server(METRICS_PORT)
     threads = []
-    for interval, gauge_name, command, func in commands:
-        if func:
+    for interval, gauge_name, command, mode in commands:
+        if mode == MODE_STRING:
             gauge = Gauge(gauge_name, gauge_name, ["node_name", "data"])
+        elif mode == MODE_DEVICE:
+            gauge = Gauge(gauge_name, gauge_name, ["node_name", "device"])
         else:
             gauge = Gauge(gauge_name, gauge_name, ["node_name"])
         t = threading.Thread(
             target=act,
-            args=(interval, gauge_name, command, func, gauge),
+            args=(interval, gauge_name, command, mode, gauge),
             daemon=True,
             name=gauge_name,
         )
         t.start()
         threads.append(t)
-        print(f"started {gauge_name} every {interval}s", flush=True)
+        print(f"started {gauge_name} every {interval}s mode={mode}", flush=True)
 
     while True:
         time.sleep(3600)

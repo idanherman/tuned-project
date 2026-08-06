@@ -28,14 +28,16 @@ Check current values: `ethtool -k <iface>`.
 
 ## Why NOT on enic
 
+> **Terminology:** aRFS (accelerated Receive Flow Steering), ntuple filtering, and RFS are the same feature at different layers. The kernel calls it aRFS, `ethtool -K` calls it `ntuple`, and the sysctl is `rps_sock_flow_entries`. Enabling any one requires the others to be configured.
+
 Red Hat confirmed in Case 04495863 Q4 and Case 03557602 that enabling ntuple (aRFS) on Cisco enic NICs in OpenShift environments causes performance degradation:
 
 1. Pod churn constantly creates/destroys flows
-2. aRFS flow table fills with stale entries
+2. aRFS flow table fills with stale entries (pods create/destroy flows constantly)
 3. Packets get steered to wrong CPUs
 4. Net result is *worse* performance than without aRFS
 
-This is documented in BZ 2216206. Do not enable ntuple on enic under any circumstances.
+This is tracked in BZ 2216206. Red Hat recommends against enabling ntuple on enic in OpenShift environments with pod churn — RSS at the UCS adapter policy level provides sufficient flow distribution without the overhead/stability risks.
 
 ## Trade-offs
 

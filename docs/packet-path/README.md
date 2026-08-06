@@ -109,7 +109,7 @@ Bufferbloat is a problem when you have a congested LINK (the pipe is full, and y
 
 Bufferbloat would be a concern on a congested WAN link at 95% utilization where TCP needs drop signals to regulate sender speed. On an internal OCP cluster with 10GbE links at moderate utilization, the ring buffer is just burst absorption — not a congestion queue.
 
-**Memory cost:** Each ring buffer slot is a descriptor (~16 bytes) pointing to a pre-allocated packet buffer (typically 2KB). So ring=4096 per queue = 4096 × ~2KB = ~8MB per queue. With 8 queues × 2 directions (RX + TX) = ~128MB per NIC. This is allocated at NIC initialization and held for the entire node uptime — it's a permanent reservation, not dynamic. At default ring=1024/512, the cost was ~48MB. Increasing to 4096/4096 adds ~80MB per NIC. On a node with 64GB+ RAM, this is negligible.
+**Memory cost:** Each ring buffer slot is a descriptor (16-32 bytes depending on driver: enic=16B, i40e=32B, vmxnet3=variable) pointing to a pre-allocated packet buffer (typically 2KB page fragments for standard MTU, or a full 4KB page on some drivers). Modern drivers use the kernel's page pool API to recycle these buffers efficiently. So ring=4096 per queue = 4096 × ~2KB = ~8MB per queue. With 8 queues × 2 directions (RX + TX) = ~128MB per NIC. This is allocated at NIC initialization and held for the entire node uptime — it's a permanent reservation, not dynamic. At default ring=1024/512, the cost was ~48MB. Increasing to 4096/4096 adds ~80MB per NIC. On a node with 64GB+ RAM, this is negligible.
 
 **Bottom line:** Ring at 4096 = burst absorption, not bufferbloat. If you see millions of drops at default ring sizes, the ring was too small — the link was not congested.
 
@@ -155,7 +155,7 @@ So while softirq is processing packets, all pods and system services on that CPU
 This polling approach is what makes 10GbE+ feasible on Linux. Without NAPI, the CPU would spend all its time entering/exiting interrupt handlers and never actually process a packet.
 
 **Budget controls (when NAPI stops polling and yields the CPU):**
-- `netdev_budget = 600` — max packets processed across ALL queues per NAPI cycle
+- `netdev_budget = 600` — Maximum packets processed across ALL scheduled NAPI instances in one `net_rx_action()` softirq invocation. Note: each individual NAPI instance (per-queue) is separately limited to `dev_weight` (default 64) packets per poll call — see the dev_weight section above
 - `netdev_budget_usecs = 4000` — max TIME spent before forcibly yielding
 
 NAPI stops when EITHER limit is hit first. If the time budget runs out before processing 600 packets, the higher packet count is wasted.
@@ -165,6 +165,22 @@ NAPI stops when EITHER limit is hit first. If the time budget runs out before pr
 **Why this matters for VMs specifically:** While NAPI holds the CPU in softirq, the hypervisor's scheduler sees the vCPU as "busy but not yielding." If softirq runs for too long, the hypervisor may penalize the VM (reduce its scheduling priority or co-stop paired vCPUs). This is why budget should stay low on VMs (default 300/2000us) but can be raised on bare-metal (600/4000us) where there's no hypervisor to anger.
 
 **Why budget_usecs=4000 on BM:** At 10GbE+ speeds, 2000us (default) is too short to process 600 packets. The time limit fires first and NAPI yields prematurely. Doubling the time ensures the packet count is the real limiter.
+
+**Per-device NAPI weight (`dev_weight`, default 64):** In addition to the global `netdev_budget`, each NAPI instance (one per queue) has its own per-poll limit called the NAPI weight. The default is 64 packets per `napi_poll()` call. This means even with `netdev_budget=600`, a single queue can only process 64 packets before yielding to the next scheduled NAPI instance. With 8 queues, the effective per-softirq capacity is 8 × 64 = 512 packets — the global budget of 600 is rarely the binding constraint. The per-device weight is set by the driver at registration time and is not directly tunable via sysctl (it's hardcoded in the driver). However, `dev_weight` (a sysctl since kernel 3.11) scales ALL devices' effective weight: `effective_weight = napi_weight × dev_weight / dev_weight_default`. The default `dev_weight` is 64 (matching NAPI weight), so the multiplier is 1.0. Raising `dev_weight` (e.g., to 128) doubles the per-poll budget for all devices.
+
+---
+
+### ④b GRO (Generic Receive Offload)
+
+Before packets leave NAPI and enter the backlog or TCP stack, the kernel applies GRO (Generic Receive Offload). GRO coalesces multiple small packets belonging to the same flow into a single large buffer — effectively the inverse of TSO on the TX side.
+
+**How it works:** During NAPI poll, `napi_gro_receive()` checks if the incoming packet can be merged with a previously-received packet from the same flow (same 5-tuple, sequential sequence numbers). If yes, the packet data is appended to the existing buffer. If no (different flow, or GRO flush timer expired), the accumulated buffer is passed up the stack as one large "super-packet."
+
+**Why it matters:** Without GRO, a single 64KB transfer arrives as ~44 individual 1448-byte segments, each requiring separate TCP processing (header parsing, checksum, state machine update). With GRO, those 44 segments become 1 large buffer processed once — reducing per-packet CPU overhead by 40-60x for bulk transfers.
+
+**Hardware GRO (`rx-gro-hw`):** Some NICs (bnxt_en, mlnx5) can perform coalescing in hardware/firmware before DMA, further reducing CPU involvement. Enabled via `ethtool -K <iface> rx-gro-hw on` or TuneD `features=rx-gro-hw on`.
+
+**Relevance to tuning:** GRO effectiveness can be measured via `node_netstat_TcpExt_TCPRcvCoalesce`. If this counter is high, GRO is working well. If it's zero despite high traffic, GRO may be disabled or the traffic pattern (many short connections) doesn't benefit from coalescing.
 
 ---
 
@@ -325,6 +341,8 @@ The IP layer adds headers, looks up the routing table for the output interface, 
 Each network interface has an output queue managed by a qdisc (queueing discipline). RHCOS uses `fq_codel` by default — a fair-queue + controlled-delay algorithm that prevents bufferbloat by keeping queue latency low and distributing bandwidth fairly across flows.
 
 For most OCP workloads, the default qdisc is fine. The queue length (`txqueuelen`, default 1000) is rarely a bottleneck because the NIC TX ring is the actual limiter.
+
+**RX-side traffic control:** While the TX path uses qdisc (fq_codel), the RX path has an analogous mechanism: the **ingress qdisc** (or `clsact` qdisc). OVN-Kubernetes uses `tc flower` rules on the ingress path to classify and redirect packets between the physical NIC and OVN's `br-int` bridge. These rules execute early in packet processing (before the packet reaches the IP stack) and can drop packets if policy doesn't match — visible in `tc -s filter show dev <iface> ingress` as `dropped` counts.
 
 ---
 
@@ -623,11 +641,12 @@ TX: bytes  packets  errors  dropped  carrier  collsns
 **What counts in RX dropped (and what doesn't):**
 
 RX dropped in `ip -s link` includes:
-- Netfilter/iptables DROP rules (packet matched a policy rejection)
+- No matching socket (UDP — destination port has no listener)
+- Netfilter NF_DROP verdicts (iptables/nftables policy rejections)
+- Packet type mismatch (VLAN mismatch or protocol with no handler registered)
 - Socket receive buffer full (UDP — no room in the destination socket)
-- Conntrack table full (nf_conntrack_max exceeded)
-- No matching socket (destination port has no listener)
-- VLAN mismatch or protocol with no handler registered
+
+Note: conntrack table full drops are counted separately in `/proc/net/stat/nf_conntrack` and `conntrack -S`, NOT in interface `rx_dropped`.
 
 RX dropped does **NOT** include:
 - NIC ring buffer drops (`ring_full`, `rx_no_bufs`) — those happen at hardware level, before kernel accounting
