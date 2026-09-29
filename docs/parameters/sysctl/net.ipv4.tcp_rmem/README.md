@@ -49,8 +49,21 @@ Tracked as RHEL-97545, documented in [KCS 7127975](https://access.redhat.com/sol
 |--------|----------|-----------|
 | vmxnet3 | Default | Not affected by RHEL-97545 |
 | enic | **4096 3145728 6291456** | Workaround for stuck auto-tuning |
-| i40e | Default | Not affected |
-| bnxt_en | Default | Not affected |
+| i40e | `4096 131072 16777216` | Not affected by RHEL-97545; max raised to 16MB to match rmem_max for iSCSI |
+| bnxt_en | `4096 131072 16777216` | Same as i40e — max raised for iSCSI, initial left at default |
+
+## tcp_wmem values
+
+The **send-side** (`tcp_wmem`) is NOT affected by the enic regression — auto-tuning works correctly for TX. Values differ by intent:
+
+| Driver | tcp_wmem | Rationale |
+|--------|----------|-----------|
+| enic | `4096 87380 16777216` | Initial=87KB (standard), max=16MB (for iSCSI large block writes) |
+| i40e | `4096 131072 16777216` | Initial=128KB (RHEL default), max=16MB (iSCSI) |
+| bnxt_en | `4096 131072 16777216` | Same as i40e |
+| vmxnet3 | Default (`4096 16384 4194304`) | No iSCSI on VMs |
+
+**Why enic tcp_wmem initial is 87380 (not 3MB):** The tcp_rmem fix raises the initial to 3MB because the RECEIVE window is broken. The SEND side works normally — 87KB initial is sufficient and auto-tuning grows it as needed. Raising tcp_wmem initial to 3MB would waste memory without fixing any bug.
 
 ## Trade-offs of high initial value
 

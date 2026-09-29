@@ -22,3 +22,7 @@ net.ipv4.tcp_rmem = 4096 3145728 6291456
 | [kernel.printk](kernel.printk/) | Low priority | All nodes |
 | [net.netfilter.nf_conntrack_max](net.netfilter.nf_conntrack_max/) | Future | — |
 | [net.ipv4.tcp_slow_start_after_idle](net.ipv4.tcp_slow_start_after_idle/) | Future | — |
+| [net.ipv4.tcp_no_metrics_cache](net.ipv4.tcp_no_metrics_cache/) | Recommended | enic (with tcp_rmem fix) |
+| [net.ipv4.tcp_tw_reuse](net.ipv4.tcp_tw_reuse/) | Recommended | Infra/router |
+| [net.ipv4.tcp_keepalive](net.ipv4.tcp_keepalive/) | Medium priority | BM (iSCSI), all |
+| [net.core.dev_weight](net.core.dev_weight/) | Under investigation | BM |
