@@ -14,3 +14,11 @@ diagnostics/
 __pycache__/
 Ultralytics/
 .obsidian/
+
+# Customer-specific documents (local/Drive only)
+docs/kubelet-configs/*.docx
+docs/kubelet-configs/*.py
+docs/kubelet-configs/*kubeletconfig*.yaml
+docs/kubelet-configs/part*.md
+docs/kubelet-configs/node-tuning-field-guide*.md
+docs/kubelet-configs/OpenShift-Node-Tuning-Field-Guide*.md
