@@ -1,4 +1,4 @@
-# Tuned CR: baremetal-cisco-enic
+# Tuned CR: baremetal-cisco-b200
 # Target: Cisco UCS B200 M5 bare-metal workers with enic driver (VIC 1340 / VIC 1457)
 # Priority: 10 (highest — enic has the most critical workaround: tcp_rmem regression)
 # Match: nodes labeled node.kubernetes.io/nic-driver=enic
@@ -44,11 +44,11 @@
 apiVersion: tuned.openshift.io/v1
 kind: Tuned
 metadata:
-  name: baremetal-cisco-enic
+  name: baremetal-cisco-b200
   namespace: openshift-cluster-node-tuning-operator
 spec:
   profile:
-    - name: baremetal-cisco-enic
+    - name: baremetal-cisco-b200
       data: |
         [main]
         summary=Cisco UCS B200 M5 workers (enic): tcp_rmem 3MB fix, backlog 5000, THP never
@@ -99,4 +99,4 @@ spec:
       # Priority 10 = highest precedence. Evaluated before all other custom profiles.
       # Wins over vm-worker (20) if a BM node also has the worker role label.
       priority: 10
-      profile: baremetal-cisco-enic
+      profile: baremetal-cisco-b200

@@ -10,8 +10,8 @@ Changes must be applied in order. Each phase has different impact and risk.
 
 | Action | Profile | Target nodes | Risk |
 |--------|---------|-------------|------|
-| Deploy enic tcp_rmem fix | baremetal-cisco-enic | All Cisco blade workers | **Low** — sysctl change, no service restart. CRITICAL for image pull regression. |
-| Deploy i40e ring+coalesce | baremetal-cisco-i40e | All Cisco pizza workers | **Low** — ring buffer increase. Eliminates 12.7M rx_missed_errors. |
+| Deploy enic tcp_rmem fix | baremetal-cisco-b200 | All Cisco blade workers | **Low** — sysctl change, no service restart. CRITICAL for image pull regression. |
+| Deploy i40e ring+coalesce | baremetal-cisco-c220 | All Cisco pizza workers | **Low** — ring buffer increase. Eliminates 12.7M rx_missed_errors. |
 | Deploy bnxt_en ring+features | baremetal-dell-r6625 | All Dell R6625 workers | **Low** — ring buffer increase from 511 to 2047. |
 | Deploy VM profiles | vm-infra, vm-worker, vm-control-plane | All VMs | **Low** — sysctls and ring buffers. |
 
@@ -64,14 +64,14 @@ Deploy only when Phase 1 and 2 are stable. Each PerformanceProfile creates a Kub
 
 **Pre-requisites:**
 1. Create hardware-type MCP labels (add to per-node MCPs)
-2. Add `cisco-blade` / `dell-r6625` / `cisco-pizza` to each per-node MCP's machineConfigSelector
+2. Add `cisco-b200` / `dell-r6625` / `cisco-c220` to each per-node MCP's machineConfigSelector
 3. Delete the old KubeletConfig for that pool AFTER the PP is active
 
 | Action | Target | CPU Pinning |
 |--------|--------|------------|
-| PerformanceProfile cisco-blade | Cisco B200 M5 blades | reserved: 0-5,14-15,28-33,42-43 (16 logical, weighted NUMA 0) |
+| PerformanceProfile cisco-b200 | Cisco B200 M5 blades | reserved: 0-5,14-15,28-33,42-43 (16 logical, weighted NUMA 0) |
 | PerformanceProfile dell-r6625 | Dell R6625 | reserved: 0-3,32-33,64-67,96-97 (12 logical, balanced) |
-| PerformanceProfile cisco-pizza | Cisco C220-M5SX | reserved: 0-3,16-17,32-35,48-49 (12 logical, balanced) |
+| PerformanceProfile cisco-c220 | Cisco C220-M5SX | reserved: 0-3,16-17,32-35,48-49 (12 logical, balanced) |
 
 Phase 3 is a **performance optimization**, not a bug fix. The customer can operate safely with just Phase 1 + 2.
 
@@ -209,8 +209,8 @@ spec:
 
 | Profile | NIC driver | Ring buffer | Key settings | Status |
 |---------|-----------|-------------|-------------|--------|
-| baremetal-cisco-enic | enic | N/A (UCSM) | tcp_rmem=4096 3145728 6291456, backlog=5000, budget=600 | Ring/coalesce set at UCSM adapter policy |
-| baremetal-cisco-i40e | i40e | rx 8160 tx 8160 | coalesce=125µs fixed, ntuple on, rx-gro-hw on, backlog=5000 | New — for pizza servers |
+| baremetal-cisco-b200 | enic | N/A (UCSM) | tcp_rmem=4096 3145728 6291456, backlog=5000, budget=600 | Ring/coalesce set at UCSM adapter policy |
+| baremetal-cisco-c220 | i40e | rx 8160 tx 8160 | coalesce=125µs fixed, ntuple on, rx-gro-hw on, backlog=5000 | New — for pizza servers |
 | baremetal-dell-r6625 | bnxt_en | rx 2047 tx 2047 | coalesce=adaptive, ntuple on, rx-gro-hw on, backlog=5000 | Updated — ring max corrected |
 | vm-infra | vmxnet3 | rx 4096 | somaxconn=10240, backlog=8192, file-max=2M, THP=always | Ready |
 | vm-worker | vmxnet3 | rx 4096 | THP=never | Ready |
@@ -239,7 +239,7 @@ Deploy in Phase 3 only. Each replaces the KubeletConfig for that hardware type.
 apiVersion: performance.openshift.io/v2
 kind: PerformanceProfile
 metadata:
-  name: cisco-blade
+  name: cisco-b200
   annotations:
     kubeletconfig.experimental: |
       {"maxPods":500,"podPidsLimit":4096,"kubeAPIQPS":100,"kubeAPIBurst":200,
@@ -264,11 +264,11 @@ spec:
   globallyDisableIrqLoadBalancing: false
   machineConfigPoolSelector:
     matchLabels:
-      hw-type: cisco-blade
+      hw-type: cisco-b200
   machineConfigLabel:
-    machineconfiguration.openshift.io/role: cisco-blade
+    machineconfiguration.openshift.io/role: cisco-b200
   nodeSelector:
-    node.kubernetes.io/hw-type: cisco-blade
+    node.kubernetes.io/hw-type: cisco-b200
 ```
 
 **Why 6 cores on socket 0, 2 on socket 1:** All 4 NICs + iSCSI are on NUMA 0. 32 RX queues fire IRQs there. kubelet GC can spike to 6+ cores. Socket 1 only needs cores for systemd and kernel threads without NIC locality requirements.

@@ -193,8 +193,8 @@ CPUs 0-15 + HT 32-47                    CPUs 16-31 + HT 48-63
 
 | Profile | Target | Status |
 |---------|--------|--------|
-| baremetal-cisco-enic | Cisco blades (enic driver) | **Partially deployed.** tcp_rmem fix is CRITICAL and must be applied. Ring/coalesce managed by UCSM. |
-| baremetal-cisco-i40e | Cisco pizza (i40e driver) | **Not deployed.** Ring buffers at defaults causing 12.7M rx_missed_errors. |
+| baremetal-cisco-b200 | Cisco blades (enic driver) | **Partially deployed.** tcp_rmem fix is CRITICAL and must be applied. Ring/coalesce managed by UCSM. |
+| baremetal-cisco-c220 | Cisco pizza (i40e driver) | **Not deployed.** Ring buffers at defaults causing 12.7M rx_missed_errors. |
 | baremetal-dell-r6625 | Dell R6625 (bnxt_en driver) | **Not deployed.** Ring buffers at defaults. aRFS/GRO-HW already on but ring needs increase. |
 | vm-infra | Infra VMs | Ready |
 | vm-worker | Worker VMs | Ready |

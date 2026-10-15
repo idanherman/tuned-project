@@ -27,7 +27,7 @@
 apiVersion: performance.openshift.io/v2
 kind: PerformanceProfile
 metadata:
-  name: cisco-blade
+  name: cisco-b200
   annotations:
     # kubeletconfig.experimental passes additional kubelet settings into the
     # generated KubeletConfig. This is the supported mechanism (OCP 4.10+)
