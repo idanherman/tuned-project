@@ -3,17 +3,43 @@
 # Priority: 10 (highest — enic has the most critical workaround: tcp_rmem regression)
 # Match: nodes labeled node.kubernetes.io/nic-driver=enic
 #
+# Hardware verified (oscp-dev-wrk-5.mamdas.iaf, Oct 2026):
+#   CPU: Intel Xeon Gold 6132, 2s × 14c × 2t = 56 logical
+#   NUMA 0: CPUs 0-13,28-41 (376G) — all 4 NICs here (eth0, iscsi1, iscsi2, trunk0)
+#   NUMA 1: CPUs 14-27,42-55 (378G) — no NICs
+#   NICs: 4× enic 20Gbps (NOT 10Gbps as previously assumed)
+#   iSCSI: iscsi1 + iscsi2 (MTU 9000 jumbo frames, separate fabrics)
+#   Ring buffers: max=4096, already at max (managed at UCS adapter policy)
+#   aRFS: OFF [fixed] — enic does not support ntuple
+#   RFS: NOT configured (rps_sock_flow_entries=0)
+#   C-states: C1E dominant (10µs), C6 disabled
+#   IRQ affinity: irqbalance correctly pins all 72+ IRQs to NUMA 0
+#
+# OBSERVED ISSUES on production node:
+#   - MASSIVE softnet drops: 22K-209K per NUMA 0 CPU (zero on NUMA 1)
+#   - MASSIVE time squeezes: 6K-421K per CPU — budget=600 insufficient
+#   - eth0 rx_no_bufs=4024 DESPITE ring buffers at max
+#   - CPU 32 hotspot: 11B packets, 180K drops
+#   - RFS not enabled: packets stay on IRQ CPU, no steering to app thread
+#
 # Key fixes applied by this profile:
 #   - tcp_rmem initial=3MB: works around RHEL 9.4 TCP window auto-tuning regression (RHEL-97545)
-#   - netdev_max_backlog=5000: fixes softnet_drops at default backlog=1000
-#   - netdev_budget_usecs=4000: ensures NAPI budget=600 is fully usable at 10GbE
+#   - netdev_max_backlog=5000: partially addresses softnet_drops (but drops persist — see below)
+#   - netdev_budget=600/budget_usecs=4000: INSUFFICIENT — squeezes still massive. Consider 1200.
 #   - THP=never: standard for worker nodes running containerized workloads
+#
+# RECOMMENDED ADDITIONS (not yet included — need customer approval):
+#   - Raise netdev_budget to 1200 (or 2400) to reduce squeezes
+#   - Enable RFS: net.core.rps_sock_flow_entries=32768 + per-queue rps_flow_cnt
+#   - Add [cpu] force_latency=1 to restrict C-states to C1 (eliminates C1E 10µs wake-up)
+#   - PerformanceProfile for CPU pinning: reserve 0-5,14-15,28-33,42-43 (system/IRQ),
+#     isolate 6-13,16-27,34-41,44-55 (workloads)
 #
 # What this profile does NOT touch (managed at UCS adapter policy):
 #   - Ring buffers (already 4096 at firmware level)
 #   - Channels/queues (8 RX + 8 TX at adapter policy)
 #   - Interrupt coalescing (125us at adapter policy)
-#   - ntuple/aRFS (intentionally OFF — RH confirmed no benefit on enic, adds instability)
+#   - ntuple/aRFS (not supported by enic — off [fixed])
 ---
 apiVersion: tuned.openshift.io/v1
 kind: Tuned

@@ -1,0 +1,15 @@
+kind: KubeletConfig
+apiVersion: machineconfiguration.openshift.io/v1
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  name: normal-worker-kubeletconfig
+spec:
+  autoSizingReserved: true
+  kubeletConfig:
+    allowedUnsafeSysctls:
+      - net.core.somaxconn
+    maxPods: 500
+  machineConfigPoolSelector:
+    matchLabels:
+      kubelet: normal-worker-kubeletconfig

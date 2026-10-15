@@ -2,17 +2,28 @@
 # Target: Dell PowerEdge R6625 with Broadcom Quad 25Gb (bnxt_en driver)
 # Priority: 12
 # Match: nodes labeled node.kubernetes.io/nic-driver=bnxt_en
-# Status: DESIGNED — not deployed yet (waiting for hardware)
+# Status: READY — verified on oscp-dell-wrk-1 (Oct 2026)
+#
+# Hardware verified (oscp-dell-wrk-1):
+#   CPU: AMD EPYC 9334, 2s × 32c × 2t = 128 logical, NPS1 (2 NUMA nodes)
+#   NUMA 0: CPUs 0-31,64-95 (755G) — all 4 NICs here
+#   NUMA 1: CPUs 32-63,96-127 (756G) — no NICs
+#   NICs: 4× bnxt_en 25Gbps, trunk0=LACP bond (np0+np1), np2+np3 standalone
+#   iSCSI: none (unlike Cisco blades)
+#   Ring buffer max: 2047 (bnxt_en hw limit, NOT 4096)
 #
 # Key settings:
-#   - Ring buffers 4096: prevent hardware drops
+#   - Ring buffers 2047: bnxt_en max (default 511 — 4x increase)
 #   - Adaptive coalescing: Broadcom recommends (unlike Intel which prefers fixed)
-#   - ntuple + rx-gro-hw: per-flow steering + hardware GRO for reduced per-packet overhead
+#   - ntuple + rx-gro-hw: aRFS + hardware GRO (bnxt_en supports both, unlike enic)
 #   - netdev_max_backlog=5000: prevent softnet_drops at 25GbE
 #   - THP=never: standard for workers
 #
 # NOTE: tcp_rmem is left at RHEL default — bnxt_en is NOT affected by RHEL-97545 regression
-# TODO: channels setting deferred until NUMA topology is verified (AMD EPYC CCX geometry)
+# NOTE: aRFS (ntuple) confirmed working on this hardware — packets steered to app CPU at NIC level
+# NOTE: C2 state on EPYC 9334 has 800µs latency. Add [cpu] force_latency=1 if drops appear
+#       under production load. Not included by default (no drops observed on baseline).
+# TODO: channels setting deferred until CCX-to-NUMA mapping is verified under load
 ---
 apiVersion: tuned.openshift.io/v1
 kind: Tuned
@@ -44,8 +55,9 @@ spec:
         [net]
         type=net
         devices_udev_regex=^ID_NET_DRIVER=bnxt_en
-        # Max ring buffers (hardware max is 8151, 4096 is sufficient and consistent)
-        ring=rx 4096 tx 4096
+        # Max ring buffers for bnxt_en (hardware max is 2047, NOT 4096 like enic)
+        # Default is 511 — this 4x increase prevents rx_no_bufs under burst traffic
+        ring=rx 2047 tx 2047
         # Broadcom recommends adaptive coalescing (driver dynamically adjusts to traffic)
         coalesce=adaptive-rx on adaptive-tx on
         # ntuple: Broadcom flow steering (stable implementation, recommended for servers)

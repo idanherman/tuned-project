@@ -1,18 +1,40 @@
 # Tuned CR: baremetal-cisco-i40e
-# Target: Cisco UCS C220 M5SX with Intel X710-DA4 (i40e driver)
+# Target: Cisco UCS C220-M5SX (pizza servers) with Intel i40e NIC driver
 # Priority: 11
 # Match: nodes labeled node.kubernetes.io/nic-driver=i40e
-# Status: DESIGNED — not deployed yet (waiting for hardware)
+# Status: READY — verified on oscp-58p-wrk2 (Oct 2026)
+#
+# Hardware verified (oscp-58p-wrk2):
+#   HW Model: UCSC-C220-M5SX (Cisco Systems Inc)
+#   CPU: Intel Xeon Gold 6226R, 2s × 16c × 2t = 64 logical
+#   NUMA 0: CPUs 0-15,32-47 (126G) — all NICs here
+#   NUMA 1: CPUs 16-31,48-63 (126G) — no NICs
+#   NICs: eth0 + eth1 (i40e, 10Gbps, 64 RX queues each) in bond0 (802.3ad LACP)
+#         eno2 (ixgbe, down), ens1f2 + ens1f3 (i40e, down)
+#   Ring buffer: max=8160, DEFAULT=512 ← 12.7M rx_missed_errors observed!
+#   aRFS: i40e supports ntuple — verify with: ethtool -k eth0 | grep ntuple
+#   Bond: bond0 = LACP (eth0 + eth1)
+#   C-states: C1E dominant (10µs), C6 disabled
+#   IRQ affinity: irqbalance correctly pins all IRQs to NUMA 0
+#
+# OBSERVED ISSUES on production node:
+#   - 12,743,206 rx_missed_errors on eth0 (ring buffer overflow at default 512)
+#   - 31,247 rx_crc_errors on eth1 (physical layer — bad cable/SFP, not tuning)
+#   - Softnet squeezes: 1200-2400 per NUMA 0 CPU (moderate)
+#   - Ring buffers at defaults (512) with max available 8160
+#   - RFS not configured
+#   - podPidsLimit still at 1024
 #
 # Key settings:
-#   - Ring buffers 4096: prevent hardware drops
-#   - 16 combined queues: one per NUMA core (TODO: verify NUMA topology)
-#   - Fixed coalescing 125us: predictable latency (Intel recommends disabling adaptive)
-#   - ntuple on: Intel Flow Director for per-flow CPU steering
+#   - Ring buffers 8160: max for i40e — eliminates rx_missed_errors
+#   - Fixed coalescing 125µs: i40e prefers fixed over adaptive for consistent latency
+#   - ntuple + rx-gro-hw: enables aRFS + hardware GRO
 #   - netdev_max_backlog=5000: prevent softnet_drops at 10GbE
 #   - THP=never: standard for workers
 #
-# NOTE: tcp_rmem is left at RHEL default — i40e is NOT affected by RHEL-97545 regression
+# NOTE: tcp_rmem left at RHEL default — i40e is NOT affected by RHEL-97545 regression
+# NOTE: No channel tuning needed — i40e already creates 64 queues (1 per CPU)
+# NOTE: CRC errors on eth1 require physical inspection (cable/SFP swap), not tuning
 ---
 apiVersion: tuned.openshift.io/v1
 kind: Tuned
@@ -24,7 +46,7 @@ spec:
     - name: baremetal-cisco-i40e
       data: |
         [main]
-        summary=Cisco C220 M5SX (i40e): ring 4096, 16 queues, ntuple, backlog 5000, THP never
+        summary=Cisco UCS C220-M5SX (i40e): ring 8160, coalesce 125us, ntuple+GRO, backlog 5000, THP never
         include=openshift-node
 
         [vm]
@@ -44,21 +66,22 @@ spec:
         [net]
         type=net
         devices_udev_regex=^ID_NET_DRIVER=i40e
-        # Max ring buffers to prevent hardware drops under burst traffic
-        ring=rx 4096 tx 4096
-        # TODO: verify cores per NUMA on C220 M5SX before deploying
-        # Intel doc 334019: queues must not exceed cores per NUMA node
-        channels=combined 16
-        # Intel recommends fixed coalescing (disable adaptive) for consistent latency
-        coalesce=adaptive-rx off adaptive-tx off rx-usecs 125
-        # Intel Flow Director: steers flows to the CPU running the receiving application
-        features=ntuple on
+        # Max ring buffers for i40e (hardware max is 8160)
+        # Default is 512 — this 16x increase should eliminate the 12.7M rx_missed_errors
+        ring=rx 8160 tx 8160
+        # Fixed coalescing: i40e performs best with fixed interrupt moderation
+        # 125µs = ~8000 interrupts/sec — balances latency vs CPU overhead at 10GbE
+        coalesce=rx-usecs 125 tx-usecs 125
+        # ntuple: Intel flow director for per-flow CPU steering (aRFS)
+        # rx-gro-hw: hardware GRO aggregates packets at NIC level
+        features=ntuple on rx-gro-hw on
+        # No channel tuning — i40e already creates 1 queue per CPU (64 queues on 64-CPU node)
   recommend:
     - match:
         # Custom label — must be applied manually:
         #   oc label node <name> node.kubernetes.io/nic-driver=i40e
         - label: node.kubernetes.io/nic-driver
           value: i40e
-      # Priority 11 — after enic (10), before VM profiles (15+)
+      # Priority 11 — after enic (10), before bnxt_en (12) and VM profiles (15+)
       priority: 11
       profile: baremetal-cisco-i40e

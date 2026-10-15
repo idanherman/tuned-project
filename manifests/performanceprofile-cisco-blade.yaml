@@ -1,0 +1,108 @@
+# PerformanceProfile for Cisco UCS B200 M5 Blades
+# Verified on: oscp-dev-wrk-5.mamdas.iaf (Oct 2026)
+# Hardware: Intel Xeon Gold 6132, 2 sockets × 14 cores, HT enabled = 56 logical CPUs
+# NUMA:
+#   Node 0 (Socket 0): CPUs 0-13 + HT siblings 28-41, ~376 GB, ALL 4 NICs (enic)
+#   Node 1 (Socket 1): CPUs 14-27 + HT siblings 42-55, ~378 GB, no NICs
+# NICs: eth0 (20G), iscsi1 (20G, MTU 9000), iscsi2 (20G, MTU 9000), trunk0 (20G macvlan)
+# IRQ affinity: irqbalance correctly pins all 72+ enic IRQs to NUMA 0 (verified)
+#
+# CPU Reservation:
+#   Socket 0: 6 physical cores (0-5 + HT 28-33) = 12 logical — weighted here for NIC DMA locality
+#   Socket 1: 2 physical cores (14-15 + HT 42-43) = 4 logical — system processes, non-NIC work
+#   Total reserved: 8 physical / 16 logical CPUs
+#   Total isolated: 20 physical / 40 logical CPUs
+#
+# Why 6 cores on socket 0:
+#   - All 4 NICs (eth0, iscsi1, iscsi2, trunk0) are on NUMA node 0
+#   - 32 total RX queues (4 NICs × 8) fire IRQs on socket 0
+#   - DMA ring buffers are in socket 0 memory — local access ~80ns vs cross-NUMA ~150ns
+#   - kubelet alone can consume 6+ cores under GC pressure (Case 03703812)
+#   - iSCSI daemons also run on reserved cores
+#
+# This replaces: tuned-worker-kubeletconfig (delete after applying)
+# Requires: PerformanceProfile CRD (Node Tuning Operator)
+# Impact: MCO rolling reboot of the cisco-blade MachineConfigPool
+---
+apiVersion: performance.openshift.io/v2
+kind: PerformanceProfile
+metadata:
+  name: cisco-blade
+  annotations:
+    # kubeletconfig.experimental passes additional kubelet settings into the
+    # generated KubeletConfig. This is the supported mechanism (OCP 4.10+)
+    # for combining PerformanceProfile with custom kubelet parameters.
+    # Ref: https://access.redhat.com/solutions/5532341
+    #
+    # DO NOT set cpuManagerPolicy, topologyManagerPolicy, or reservedSystemCPUs
+    # here — those are managed by the PerformanceProfile spec fields.
+    kubeletconfig.experimental: |
+      {
+        "maxPods": 500,
+        "podPidsLimit": 4096,
+        "kubeAPIQPS": 100,
+        "kubeAPIBurst": 200,
+        "nodeStatusMaxImages": 500,
+        "registryPullQPS": 50,
+        "registryBurst": 100,
+        "allowedUnsafeSysctls": ["net.core.somaxconn"],
+        "evictionHard": {
+          "memory.available": "8Gi",
+          "imagefs.available": "10%",
+          "nodefs.available": "10%",
+          "nodefs.inodesFree": "5%"
+        },
+        "evictionSoft": {
+          "memory.available": "16Gi",
+          "imagefs.available": "25%",
+          "nodefs.available": "20%",
+          "nodefs.inodesFree": "15%",
+          "imagefs.inodesFree": "10%"
+        },
+        "evictionSoftGracePeriod": {
+          "memory.available": "1m30s",
+          "imagefs.available": "1m30s",
+          "nodefs.available": "1m30s",
+          "nodefs.inodesFree": "1m30s",
+          "imagefs.inodesFree": "1m30s"
+        },
+        "imageGCHighThresholdPercent": 75,
+        "imageGCLowThresholdPercent": 50,
+        "imageMinimumGCAge": "5m0s",
+        "systemReserved": {
+          "memory": "10Gi",
+          "ephemeral-storage": "1Gi"
+        },
+        "shutdownGracePeriod": "90s",
+        "shutdownGracePeriodCriticalPods": "15s"
+      }
+spec:
+  cpu:
+    # Socket 0 (NUMA 0, NIC NUMA): cores 0-5 + HT siblings 28-33 = 12 logical
+    # Socket 1 (NUMA 1):           cores 14-15 + HT siblings 42-43 = 4 logical
+    reserved: "0-5,14-15,28-33,42-43"
+    # Everything else for workloads
+    isolated: "6-13,16-27,34-41,44-55"
+  numa:
+    topologyPolicy: "restricted"
+  # Do NOT set realTimeKernel — not needed for this workload profile
+  realTimeKernel:
+    enabled: false
+  # IRQ load balancing: keep enabled (false) for now.
+  # irqbalance still distributes across reserved CPUs.
+  # Set to true only if softnet analysis shows IRQ concentration issues.
+  globallyDisableIrqLoadBalancing: false
+  # No hugepages — no DPDK/SR-IOV workloads currently
+  # Add later if needed:
+  # hugepages:
+  #   defaultHugepagesSize: "1Gi"
+  #   pages:
+  #     - count: 16
+  #       size: "1Gi"
+  #       node: 0
+  nodeSelector:
+    # Label nodes: oc label node <name> node.kubernetes.io/hw-type=cisco-blade
+    node.kubernetes.io/hw-type: "cisco-blade"
+  machineConfigPoolSelector:
+    matchLabels:
+      machineconfiguration.openshift.io/role: "cisco-blade"
