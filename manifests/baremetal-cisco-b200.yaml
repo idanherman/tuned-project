@@ -3,7 +3,7 @@
 # Priority: 10 (highest — enic has the most critical workaround: tcp_rmem regression)
 # Match: nodes labeled node.kubernetes.io/nic-driver=enic
 #
-# Hardware verified (oscp-dev-wrk-5.mamdas.iaf, Oct 2026):
+# Hardware verified (oscp-dev-wrk-5, Oct 2026):
 #   CPU: Intel Xeon Gold 6132, 2s × 14c × 2t = 56 logical
 #   NUMA 0: CPUs 0-13,28-41 (376G) — all 4 NICs here (eth0, iscsi1, iscsi2, trunk0)
 #   NUMA 1: CPUs 14-27,42-55 (378G) — no NICs
